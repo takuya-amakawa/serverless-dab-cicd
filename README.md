@@ -47,3 +47,5 @@ src/*.py                     # ジョブが参照するノートブック/スク
 - 各環境のジョブは**自WSへ直接**認証（stg→azurew1 / prod→azurew2）＝ serverless の自WS束縛は無関係。
 - secret ローテーションが楽なのは **Azure Key Vault backend**（本 CI では GitHub Secrets を更新）。
 - 最終ターゲットが **Azure DevOps** なら、environment approvals はプラン制約なく使える。
+
+<!-- Vg-1: PR→validate 実証用の軽微変更 -->
