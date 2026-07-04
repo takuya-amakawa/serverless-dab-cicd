@@ -1,0 +1,71 @@
+name: DAB CICD (serverless, direct engine)
+
+# PR → validate（静的検証） / main push → staging 自動 deploy+run /
+# staging 成功後 → prod は environment 承認ゲートを通過してから deploy+run。
+# 機密（catalog/appId/host/secret）は environment Secrets から注入（リポジトリはコードのみ）。
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+env:
+  DATABRICKS_BUNDLE_ENGINE: direct   # direct エンジンを CI 側でも明示（bundle.engine と二重担保）
+
+jobs:
+  # ---- PR: 静的検証（staging 資格情報で validate のみ・デプロイしない） ----
+  validate:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+        with:
+          version: 1.5.0            # 再現性のため CLI をピン留め
+      - name: bundle validate (staging)
+        run: databricks bundle validate -t staging --var "catalog=${{ secrets.CATALOG }}"
+
+  # ---- main push: staging(azurew1) 自動 deploy + run ----
+  deploy-staging:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+        with:
+          version: 1.5.0
+      - name: bundle deploy (staging)
+        run: databricks bundle deploy -t staging --var "catalog=${{ secrets.CATALOG }}"
+      - name: bundle run orchestrator (staging)
+        run: databricks bundle run -t staging orchestrator_job --var "catalog=${{ secrets.CATALOG }}"
+
+  # ---- 承認後: prod(azurew2) deploy + run。environment: prod が承認ゲート ----
+  deploy-prod:
+    if: github.event_name == 'push'
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: prod            # ← GitHub Environments の required reviewer で承認待ちになる
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+        with:
+          version: 1.5.0
+      # prod は production モード → run_as に identity 必須。prod の client_id を run_as_sp に注入。
+      - name: bundle deploy (prod)
+        run: databricks bundle deploy -t prod --var "catalog=${{ secrets.CATALOG }}" --var "run_as_sp=${{ secrets.DATABRICKS_CLIENT_ID }}"
+      - name: bundle run orchestrator (prod)
+        run: databricks bundle run -t prod orchestrator_job --var "catalog=${{ secrets.CATALOG }}" --var "run_as_sp=${{ secrets.DATABRICKS_CLIENT_ID }}"

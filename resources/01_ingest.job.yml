@@ -1,0 +1,22 @@
+# 01_ingest.job.yml — notebook_task（サーバーレス）
+# GitHub CI/CD 版: schedule は PAUSED（prod=production は既定 UNPAUSED のため、テスト誤発火を防ぐ）。
+resources:
+  jobs:
+    ingest_job:
+      name: ingest_job
+      tasks:
+        - task_key: ingest
+          notebook_task:
+            notebook_path: ../src/ingest.py     # generate 後はローカル相対パスに（公式に明記）
+            base_parameters:
+              catalog: ${var.catalog}           # 環境固有値は変数化
+              schema: ${var.schema}
+          environment_key: default               # job_clusters/new_cluster を持たない＝サーバーレス
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+      schedule:
+        quartz_cron_expression: "0 0 6 * * ?"    # 毎日 06:00
+        timezone_id: "Asia/Tokyo"
+        pause_status: PAUSED                     # ← CI/CD 検証用に停止（本番は UNPAUSED に）

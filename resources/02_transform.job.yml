@@ -1,0 +1,20 @@
+# 02_transform.job.yml — サンプル: Python タスク（サーバーレス）
+resources:
+  jobs:
+    transform_job:
+      name: transform_job
+      tasks:
+        - task_key: transform
+          spark_python_task:
+            python_file: ../src/transform.py    # ← generate 後はローカル相対パスに修正
+            parameters:
+              - ${var.catalog}
+              - ${var.schema}
+          environment_key: default
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+            # エアギャップで外部依存が要る場合の例（UC Volume 上の wheel を参照＝PyPI 不要）:
+            # dependencies:
+            #   - ${var.wheel_volume_path}/mypkg-1.0.0-py3-none-any.whl

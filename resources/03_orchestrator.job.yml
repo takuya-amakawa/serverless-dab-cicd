@@ -1,0 +1,15 @@
+# 03_orchestrator.job.yml — サンプル: inter-job 参照を「resource key」で（環境間ポータブル）
+# 数値の job_id ではなく ${resources.jobs.<key>.id} で参照 → 各 target のデプロイ済み ID に解決される。
+resources:
+  jobs:
+    orchestrator_job:
+      name: orchestrator_job
+      tasks:
+        - task_key: run_ingest
+          run_job_task:
+            job_id: ${resources.jobs.ingest_job.id}
+        - task_key: run_transform
+          depends_on:
+            - task_key: run_ingest
+          run_job_task:
+            job_id: ${resources.jobs.transform_job.id}

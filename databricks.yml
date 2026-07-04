@@ -1,0 +1,46 @@
+# databricks.yml — GitHub Actions CI/CD 版（sandbox: stg=azurew1 / prod=azurew2）
+# 機密（catalog 名 / SP appId / host / secret）はリポジトリに置かず、GitHub Environments の
+# Secrets で CI 実行時に注入する（＝public repo でもコードのみ）。詳細は README.md。
+bundle:
+  name: lakeflow-migration
+  # ✅ direct デプロイエンジン（Terraform 非依存）＝エアギャップの核心。
+  #    CI 側では env DATABRICKS_BUNDLE_ENGINE=direct でも二重に担保。
+  engine: direct
+
+include:
+  - resources/*.yml   # ジョブ定義を集約 → 1回の deploy で N ジョブ一括
+
+variables:
+  catalog:
+    description: "UC カタログ。CI が --var catalog=<環境別 CATALOG secret> で注入"
+  schema:
+    description: "既定スキーマ（非機密なので既定値を持つ）"
+    default: dabcd_gh
+  warehouse_id:
+    description: "SQL タスク用 warehouse id（無ければ空でよい）"
+    default: ""
+  notification_email:
+    description: "ジョブ通知先メール"
+    default: ""
+  run_as_sp:
+    description: "本番 run_as の SP application id。CI が prod の client_id を --var 注入"
+    default: ""
+
+targets:
+  # ---- staging = azurew1（development） ----
+  staging:
+    mode: development
+    default: true
+    # catalog は CI が --var 注入（staging→azurew1）。schema は global 既定 dabcd_gh。
+    # host も staging environment secret(DATABRICKS_HOST)で解決（ここに書かない）。
+
+  # ---- prod = azurew2（production, run_as=SP） ----
+  prod:
+    mode: production
+    workspace:
+      root_path: /Workspace/Shared/.bundle/${bundle.name}/${bundle.target}
+    # production は run_as に identity 必須。CI が prod の client_id を run_as_sp に --var 注入。
+    run_as:
+      service_principal_name: ${var.run_as_sp}
+    # catalog も CI が --var 注入（prod→azurew2）。host は prod environment secret で解決。
+    # ⚠️ Git 連携でも targets に git.branch は設定しない（production のブランチ検証を避ける）。

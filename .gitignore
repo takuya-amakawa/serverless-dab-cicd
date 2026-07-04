@@ -1,0 +1,12 @@
+# DAB のローカル state / 一時物（環境固有＝移送しない）
+.databricks/
+*.tfstate
+*.tfstate.*
+
+# 資格情報は絶対にコミットしない（Secrets は GitHub Environments に置く）
+.env
+*.env
+.databrickscfg
+
+# OS / エディタ
+.DS_Store
